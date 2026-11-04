@@ -1,0 +1,4 @@
+id=cameradata
+name=Cameradata fix
+author=Tisenu100, Peter Knecht
+description=Patch the Camera to abide with the target device configuration.
