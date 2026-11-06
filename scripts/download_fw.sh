@@ -25,7 +25,7 @@ REGION="EUX"
 # DOWNLOAD LINKS
 # ============================================================
 
-S926_AP="https://www.swisstransfer.com/dl/01a1b0a2-6ced-7212-9aa3-fd9c1f29717e"
+S926_AP="https://01a1b026-dd10-70e0-93dc-8d70a5ec2057.sb05a.swisstransfer.infomaniak.cloud/01a1b0a2-6cea-7350-85c8-9f14e3753d29/01a1b0a2-6cef-71ab-92be-ab7268cf4e93?response-content-disposition=attachment%3B%20filename%3DAP_S926BXXSHDZI1_S926BXXSHDZI1_MQB115108131_REV00_user_low_ship_MULTI_CERT_meta_OS16.tar.md5&response-content-type=application%2Foctet-stream&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=EE3ExaKl0oA6KOjaqihNThWEnNU7cJkR%2F20261106%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20261106T123340Z&X-Amz-SignedHeaders=host&X-Amz-Expires=3600&X-Amz-Signature=0590e9fddb94408dc7d250a8b940389a601848f9df57044352955311b1f701ba"
 S926_CSC="https://ts.buzzheavier.com/d/ktgxz41l0nbt"
 
 A705_AP="https://ts.buzzheavier.com/d/kj4r1visj0ke"
