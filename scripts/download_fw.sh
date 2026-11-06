@@ -1,215 +1,284 @@
+
 #!/usr/bin/env bash
-# Copyright (c) 2025 Salvo Giangreco
-# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Firmware downloader and image extractor
+# Models: SM-S926B and SM-A705FN
+#
+# Downloads TAR.MD5 packages, extracts their contents,
+# and decompresses IMG.LZ4 files into IMG files.
+#
+# Output:
+#   odin/MODEL_REGION/       Downloaded TAR.MD5 packages
+#   firmware/MODEL_REGION/  Decompressed IMG files
+#
 
-# [
-source "$SRC_DIR/scripts/utils/firmware_utils.sh" || exit 1
+set -Eeuo pipefail
 
-FORCE=false
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
-FIRMWARES=()
-MODEL=""
-CSC=""
-IMEI=""
-SERIAL_NO=""
-LATEST_FIRMWARE=""
-DOWNLOAD_FIRMWARE=""
-REQUESTED_FIRMWARE=""
-ZIP_FILE=""
+ODIN_DIR="${ODIN_DIR:-$SCRIPT_DIR/odin}"
+FW_OUTPUT_DIR="${FW_OUTPUT_DIR:-$SCRIPT_DIR/firmware}"
 
-PREPARE_SCRIPT()
-{
-    local EXTRA_FIRMWARES=()
-    local IGNORE_SOURCE=false
-    local IGNORE_TARGET=false
+REGION="EUX"
 
-    while [ "$#" != 0 ]; do
-        if [[ "$1" == "--force" ]] || [[ "$1" == "-f" ]]; then
-            FORCE=true
-        elif [[ "$1" == "--version" ]]; then
-            shift
-            if [ -z "$1" ] || [[ "$1" == "-"* ]]; then
-                LOGE "--version requires a firmware version"
-                PRINT_USAGE
-                exit 1
-            fi
-            REQUESTED_FIRMWARE="$1"
-        elif [[ "$1" == "--ignore-source" ]]; then
-            IGNORE_SOURCE=true
-        elif [[ "$1" == "--ignore-target" ]]; then
-            IGNORE_TARGET=true
-        elif [[ "$1" == "-"* ]]; then
-            LOGE "Unknown option: $1"
-            PRINT_USAGE
+# ============================================================
+# DOWNLOAD LINKS
+# ============================================================
+
+S926_AP="https://www.swisstransfer.com/dl/01a1b0a2-6ced-7212-9aa3-fd9c1f29717e"
+S926_CSC="https://ts.buzzheavier.com/d/ktgxz41l0nbt"
+
+A705_AP="https://ts.buzzheavier.com/d/kj4r1visj0ke"
+A705_BL="https://ts.buzzheavier.com/d/qgjjsxmubqw2"
+
+# ============================================================
+# ARGUMENTS
+# ============================================================
+
+FORCE=0
+
+for arg in "$@"; do
+    case "$arg" in
+        --force|-f)
+            FORCE=1
+            ;;
+        --help|-h)
+            echo "Usage: $0 [--force]"
+            exit 0
+            ;;
+        *)
+            echo "Unknown argument: $arg"
             exit 1
-        else
-            EXTRA_FIRMWARES+=("$1")
-        fi
-
-        shift
-    done
-
-    if ! $IGNORE_SOURCE; then
-        _CHECK_NON_EMPTY_PARAM "SOURCE_FIRMWARE" "$SOURCE_FIRMWARE" || exit 1
-        FIRMWARES+=("$SOURCE_FIRMWARE")
-        IFS=':' read -r -a SOURCE_EXTRA_FIRMWARES <<< "$SOURCE_EXTRA_FIRMWARES"
-        if [ "${#SOURCE_EXTRA_FIRMWARES[@]}" -ge 1 ]; then
-            FIRMWARES+=("${SOURCE_EXTRA_FIRMWARES[@]}")
-        fi
-    fi
-
-    if ! $IGNORE_TARGET; then
-        _CHECK_NON_EMPTY_PARAM "TARGET_FIRMWARE" "$TARGET_FIRMWARE" || exit 1
-        FIRMWARES+=("$TARGET_FIRMWARE")
-        IFS=':' read -r -a TARGET_EXTRA_FIRMWARES <<< "$TARGET_EXTRA_FIRMWARES"
-        if [ "${#TARGET_EXTRA_FIRMWARES[@]}" -ge 1 ]; then
-            FIRMWARES+=("${TARGET_EXTRA_FIRMWARES[@]}")
-        fi
-    fi
-
-    if [ "${#EXTRA_FIRMWARES[@]}" -ge 1 ]; then
-        FIRMWARES+=("${EXTRA_FIRMWARES[@]}")
-    fi
-
-    if [ -n "$REQUESTED_FIRMWARE" ] && [ "${#FIRMWARES[@]}" -ne 1 ]; then
-        LOGE "--version can only be used when downloading one firmware"
-        exit 1
-    fi
-}
-
-PRINT_USAGE()
-{
-    echo "Usage: download_fw [options] <firmware>" >&2
-    echo " --ignore-source : Skip parsing source firmware flags" >&2
-    echo " --ignore-target : Skip parsing target firmware flags" >&2
-    echo " -f, --force : Force firmware download" >&2
-    echo " --version <PDA/CSC/CP> : Download a specific firmware version" >&2
-}
-
-VERIFY_ODIN_PACKAGES()
-{
-    local FILE_NAME
-    local LENGTH
-    local STORED_HASH
-    local CALCULATED_HASH
-
-    while IFS= read -r f; do
-        FILE_NAME="$(basename "$f")"
-        LOG_STEP_IN "- Verifying $FILE_NAME..."
-
-        FILE_NAME="${FILE_NAME%.md5}"
-
-        # Samsung stores the output of `md5sum` at the very end of the file
-        LENGTH="32" # Length of MD5 hash
-        LENGTH="$((LENGTH + 2))" # 2 whitespace chars
-        LENGTH="$((LENGTH + ${#FILE_NAME}))" # File name without .md5 extension
-        LENGTH="$((LENGTH + 1))" # 1 newline char
-
-        STORED_HASH="$(tail -c "$LENGTH" "$f" | cut -d " " -f 1 -s)"
-        if [ ! "$STORED_HASH" ] || [[ "${#STORED_HASH}" != "32" ]]; then
-            LOG "\033[0;31m! Expected hash could not be parsed\033[0m"
-            exit 1
-        fi
-
-        CALCULATED_HASH="$(head -c-$LENGTH "$f" | md5sum | cut -d " " -f 1 -s)"
-
-        if [[ "$STORED_HASH" != "$CALCULATED_HASH" ]]; then
-            LOG "\033[0;31m! File is damaged\033[0m"
-            exit 1
-        fi
-
-        LOG_STEP_OUT
-    done < <(find "$ODIN_DIR/${MODEL}_${CSC}" -type f -name "*.md5")
-}
-# ]
-
-PREPARE_SCRIPT "$@"
-
-for i in "${FIRMWARES[@]}"; do
-    PARSE_FIRMWARE_STRING "$i" || exit 1
-
-    CONFIGURED_FIRMWARE=""
-    if [ "$i" == "$SOURCE_FIRMWARE" ]; then
-        CONFIGURED_FIRMWARE="$SOURCE_FIRMWARE_VERSION"
-    elif [ "$i" == "$TARGET_FIRMWARE" ]; then
-        CONFIGURED_FIRMWARE="$TARGET_FIRMWARE_VERSION"
-    fi
-
-    LATEST_FIRMWARE="$(GET_LATEST_FIRMWARE "$MODEL" "$CSC")"
-    if [ ! "$LATEST_FIRMWARE" ] && [ -z "$REQUESTED_FIRMWARE" ] && [ -z "$CONFIGURED_FIRMWARE" ]; then
-        LOGE "Latest available firmware could not be fetched"
-        exit 1
-    fi
-
-    DOWNLOAD_FIRMWARE="${REQUESTED_FIRMWARE:-${CONFIGURED_FIRMWARE:-$LATEST_FIRMWARE}}"
-
-    LOG_STEP_IN "- Processing $MODEL firmware with $CSC CSC"
-    LOG "- Downloaded firmware: $(cat "$ODIN_DIR/${MODEL}_${CSC}/.downloaded" 2> /dev/null)"
-    LOG "- Extracted firmware: $(cat "$FW_DIR/${MODEL}_${CSC}/.extracted" 2> /dev/null)"
-    LOG "- Latest available firmware: $LATEST_FIRMWARE"
-    [ -n "$CONFIGURED_FIRMWARE" ] && LOG "- Configured firmware: $CONFIGURED_FIRMWARE"
-    [ -n "$REQUESTED_FIRMWARE" ] && LOG "- Requested firmware: $REQUESTED_FIRMWARE"
-
-    LOG_STEP_IN
-
-    if ! $FORCE; then
-        # Skip if firmware has been extracted and equal/newer than the one in FUS
-        if [ -f "$FW_DIR/${MODEL}_${CSC}/.extracted" ]; then
-            if COMPARE_SEC_BUILD_VERSION "$(cat "$FW_DIR/${MODEL}_${CSC}/.extracted")" "$DOWNLOAD_FIRMWARE"; then
-                LOG "\033[0;33m! This firmware has already been extracted, skipping\033[0m"
-                LOG_STEP_OUT; LOG_STEP_OUT
-                continue
-            fi
-        fi
-
-        # Skip if firmware has already been downloaded
-        if [ -f "$ODIN_DIR/${MODEL}_${CSC}/.downloaded" ]; then
-            if ! COMPARE_SEC_BUILD_VERSION "$(cat "$ODIN_DIR/${MODEL}_${CSC}/.downloaded")" "$DOWNLOAD_FIRMWARE"; then
-                LOG "\033[0;33m! A newer firmware is available for download, use --force flag if you want to overwrite it\033[0m"
-            else
-                LOG "\033[0;33m! This firmware has already been downloaded\033[0m"
-            fi
-            LOG_STEP_OUT; LOG_STEP_OUT
-            continue
-        fi
-    fi
-
-    LOG "- Downloading firmware..."
-    [ -f "$ODIN_DIR/${MODEL}_${CSC}/.downloaded" ] && rm -rf "$ODIN_DIR/${MODEL}_${CSC}"
-    mkdir -p "$ODIN_DIR/${MODEL}_${CSC}"
-    find "$ODIN_DIR/${MODEL}_${CSC}" -maxdepth 1 -type f -name "*.zip" -delete
-
-    COUNT=1
-    while true; do
-        "$TOOLS_DIR/bin/samloader" download \
-            --model "$MODEL" \
-            --region "$CSC" \
-            --version "$DOWNLOAD_FIRMWARE" \
-            --out-dir "$ODIN_DIR/${MODEL}_${CSC}" || exit 1
-
-        ZIP_FILE="$(find "$ODIN_DIR/${MODEL}_${CSC}" -maxdepth 1 -type f -name "*.zip" | head -n 1)"
-        if [ ! "$ZIP_FILE" ] || [ ! -f "$ZIP_FILE" ]; then
-            if [ "$COUNT" -gt 10 ]; then
-                LOG "\033[0;31m! Download failed after 10 retries\033[0m"
-                exit 1
-            fi
-
-            LOG "\033[0;31m! [Attempt: $COUNT] Download failed, retrying in 5 seconds...\033[0m"
-            sleep 5
-            ((COUNT++))
-        else
-            break
-        fi
-    done
-
-    LOG "- Extracting $(basename "$ZIP_FILE")..."
-    EVAL "unzip -o \"$ZIP_FILE\" -d \"$ODIN_DIR/${MODEL}_${CSC}\" && rm -rf \"$ZIP_FILE\"" || exit 1
-
-    VERIFY_ODIN_PACKAGES
-
-    echo -n "$DOWNLOAD_FIRMWARE" > "$ODIN_DIR/${MODEL}_${CSC}/.downloaded"
-
-    LOG_STEP_OUT; LOG_STEP_OUT
+            ;;
+    esac
 done
 
-exit 0
+# ============================================================
+# DEPENDENCIES
+# ============================================================
+
+require_command() {
+    if ! command -v "$1" >/dev/null 2>&1; then
+        echo "ERROR: Required command '$1' is not installed."
+        exit 1
+    fi
+}
+
+require_command curl
+require_command tar
+require_command lz4
+require_command find
+require_command mktemp
+require_command cp
+
+mkdir -p "$ODIN_DIR" "$FW_OUTPUT_DIR"
+
+# ============================================================
+# DOWNLOAD PACKAGE
+# ============================================================
+
+download_package() {
+    local model="$1"
+    local package="$2"
+    local url="$3"
+    local destination="$4"
+
+    if [[ -z "$url" ]]; then
+        echo "[SKIP] $model $package: no URL configured."
+        return 0
+    fi
+
+    if [[ -s "$destination" && "$FORCE" -eq 0 ]]; then
+        echo "[EXISTS] $(basename "$destination")"
+        return 0
+    fi
+
+    echo
+    echo "[DOWNLOAD] $model $package"
+    echo "URL: $url"
+
+    rm -f "$destination"
+
+    curl \
+        --fail \
+        --location \
+        --show-error \
+        --retry 3 \
+        --retry-delay 3 \
+        --connect-timeout 30 \
+        --output "$destination" \
+        "$url"
+
+    if [[ ! -s "$destination" ]]; then
+        echo "ERROR: Downloaded file is empty: $destination"
+        return 1
+    fi
+
+    echo "[OK] Downloaded $(basename "$destination")"
+}
+
+# ============================================================
+# EXTRACT TAR.MD5 AND DECOMPRESS IMAGES
+# ============================================================
+
+extract_archive() {
+    local model="$1"
+    local archive="$2"
+    local output_dir="$3"
+
+    local archive_name
+    archive_name="$(basename "$archive")"
+
+    local temp_dir
+    temp_dir="$(mktemp -d)"
+
+    echo
+    echo "[ARCHIVE] $archive_name"
+
+    if ! tar -tf "$archive" >/dev/null 2>&1; then
+        echo "ERROR: Cannot read TAR archive: $archive"
+        rm -rf "$temp_dir"
+        return 1
+    fi
+
+    if ! tar -xf "$archive" -C "$temp_dir"; then
+        echo "ERROR: Failed to extract $archive_name"
+        rm -rf "$temp_dir"
+        return 1
+    fi
+
+    local extracted=0
+
+    while IFS= read -r -d '' file; do
+        local filename
+        filename="$(basename "$file")"
+
+        local output_name="$filename"
+        local destination="$output_dir/$output_name"
+
+        # Decompress IMG.LZ4, including super.img.lz4.
+        if [[ "$filename" == *.img.lz4 ]]; then
+            output_name="${filename%.lz4}"
+            destination="$output_dir/$output_name"
+
+            if [[ -e "$destination" ]]; then
+                echo "[SKIP] $output_name already exists"
+                continue
+            fi
+
+            echo "[LZ4] $filename -> $output_name"
+
+            if ! lz4 -d -f "$file" "$destination"; then
+                echo "ERROR: Failed to decompress $filename"
+                rm -rf "$temp_dir"
+                return 1
+            fi
+
+            ((extracted += 1))
+
+        # Copy already decompressed IMG files.
+        elif [[ "$filename" == *.img ]]; then
+            if [[ -e "$destination" ]]; then
+                echo "[SKIP] $output_name already exists"
+                continue
+            fi
+
+            echo "[COPY] $filename"
+
+            cp -f "$file" "$destination"
+
+            ((extracted += 1))
+        fi
+
+    done < <(
+        find "$temp_dir" -type f \
+            \( -name "*.img.lz4" -o -name "*.img" \) \
+            -print0
+    )
+
+    rm -rf "$temp_dir"
+
+    echo "[OK] $archive_name: processed $extracted image(s)"
+}
+
+# ============================================================
+# PROCESS MODEL
+# ============================================================
+
+process_model() {
+    local model="$1"
+    shift
+
+    local model_odin="$ODIN_DIR/${model}_${REGION}"
+    local model_firmware="$FW_OUTPUT_DIR/${model}_${REGION}"
+
+    mkdir -p "$model_odin" "$model_firmware"
+
+    if [[ "$FORCE" -eq 1 ]]; then
+        echo "[FORCE] Removing previous firmware files for $model"
+
+        rm -f "$model_odin"/*.tar.md5
+        rm -f "$model_firmware"/*.img
+        rm -f "$model_firmware"/.downloaded
+    fi
+
+    echo
+    echo "=================================================="
+    echo " MODEL: $model"
+    echo "=================================================="
+
+    local packages=("$@")
+
+    local package
+    local package_name
+    local package_url
+    local archive_path
+
+    for package in "${packages[@]}"; do
+        package_name="${package%%:*}"
+        package_url="${package#*:}"
+
+        archive_path="$model_odin/${model}_${package_name}.tar.md5"
+
+        download_package \
+            "$model" \
+            "$package_name" \
+            "$package_url" \
+            "$archive_path"
+
+        if [[ -s "$archive_path" ]]; then
+            extract_archive \
+                "$model" \
+                "$archive_path" \
+                "$model_firmware"
+        fi
+    done
+
+    touch "$model_firmware/.downloaded"
+
+    echo
+    echo "[DONE] $model"
+    echo "Firmware images: $model_firmware"
+}
+
+# ============================================================
+# MAIN
+# ============================================================
+
+process_model "SM-S926B" \
+    "AP:$S926_AP" \
+    "CSC:$S926_CSC"
+
+process_model "SM-A705FN" \
+    "AP:$A705_AP" \
+    "BL:$A705_BL"
+
+echo
+echo "=================================================="
+echo " ALL DOWNLOADS AND EXTRACTIONS COMPLETED"
+echo "=================================================="
+
+echo
+echo "Output directories:"
+echo "  $FW_OUTPUT_DIR/SM-S926B_EUX"
+echo "  $FW_OUTPUT_DIR/SM-A705FN_EUX"
