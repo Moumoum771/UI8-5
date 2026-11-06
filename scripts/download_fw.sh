@@ -26,10 +26,10 @@ REGION="EUX"
 # ============================================================
 
 S926_AP="https://01a1b026-dd10-70e0-93dc-8d70a5ec2057.sb05a.swisstransfer.infomaniak.cloud/01a1b0a2-6cea-7350-85c8-9f14e3753d29/01a1b0a2-6cef-71ab-92be-ab7268cf4e93?response-content-disposition=attachment%3B%20filename%3DAP_S926BXXSHDZI1_S926BXXSHDZI1_MQB115108131_REV00_user_low_ship_MULTI_CERT_meta_OS16.tar.md5&response-content-type=application%2Foctet-stream&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=EE3ExaKl0oA6KOjaqihNThWEnNU7cJkR%2F20261106%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20261106T123340Z&X-Amz-SignedHeaders=host&X-Amz-Expires=3600&X-Amz-Signature=0590e9fddb94408dc7d250a8b940389a601848f9df57044352955311b1f701ba"
-S926_CSC="https://ts.buzzheavier.com/d/ktgxz41l0nbt"
+S926_CSC="https://ts.buzzheavier.com/d/ktgxz41l0nbt?v=7jwIPIMZJtjS_CC8hLl1Xvg7Xf_R1vC0917pQff07vKpXayn5svOyh9FWdCB9Bra1LooQPIv6DcyZ_65zNTY3VmrHof7q6EXg6cMT6dEiZlwKXEBCkjdECu74Ii-8p_ivD9HJiM7FJkPcUrh_Wn3VMJJ4r8xC5X0DQhs5fr8CuYHewEBRFhLpckunDCcdi2qTEVH3jjqqop6caJ81p30VapfF8ZM2myrEM4tPh4_QNydyf4d20b7cbvWcICveguYd6t56C0UpebOgtFQoOwFNOXv8fw6gOYoCRWc69xqFC3hd60"
 
-A705_AP="https://ts.buzzheavier.com/d/kj4r1visj0ke"
-A705_BL="https://ts.buzzheavier.com/d/qgjjsxmubqw2"
+A705_AP="https://ts.buzzheavier.com/d/kj4r1visj0ke?v=QaKUOaKGPln4_V3UDLOIZQnYIcVJl5iLZ0sQLiK2FliJWti0sSAnnFUYFrf-ZhKoX2Efh-T0cT4eKq7ShvM7K5SeQNrw-dCypyDFUOxo3WH7miJ_0GaWXlP1yTyYPnX58vGQyVWEhy0kmZkiH-80yzUgAhdA8TRbk7c7qitbK-0UTiswDVh89-OL0dxF_6SrJVWtk6lESuPOFD77NF5_LB4meUNJecglt3wstbDRFT_wR7JWu7QNt4Fp3t6pHJHRYd6mKR_blQ5DOjBlgrYZQB0hIB210i-hlLxTJXyceXUMeYl7TawLs9QfyBcbTjTp3tjpUztIo7W-2xa-YI3a65Vrxw"
+A705_BL="https://ts.buzzheavier.com/d/qgjjsxmubqw2?v=z0BT0Qv35vTTv1PmihcoMDweey_VBXsx-xdcfoWdk76tmH7xbbjs5W_kAW7R8xsxcQ5m3t3jPfpswiuyH20eZ43dIRJPPGKFMhXdZHDaBG1VxtvVCOy9A2fxvGJJ9SOmsstSQ4pyoyUlAfdOVV8XnN-Txgnl3-V2g0QM7vN-uen73itetCwCCHA-mJ0XBZNuSBvXmUSIaCEEybvVkOH2GdcJLg-k1DMf2SBM9yIv02x4xaCyZZ88Lv9lHE1ePC9dfGaeRUCx6KT3ICPRT1zDZ7Mm_hYod7FN7sMM6aiWN0sgGDbcpoH2xNXO7swHI-o"
 
 # ============================================================
 # ARGUMENTS
